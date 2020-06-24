@@ -1,4 +1,4 @@
-"""A demonstration of basic gradient descent flow rendezvous.
+"""A demonstration of ensemble level dynamics for rendezvous.
 This code assumes that the communication graph is static and fully connected.
 The robots simply move in the direction of negative gradient.
 """
@@ -12,6 +12,8 @@ xlim = 20
 ylim = 20
 num_robots = 3
 dt = 0.01
+err_threshold = 0.5
+p = 2  # Planar dimensions
 
 def rendezvous_error(x):
     # Calculate the error
@@ -35,29 +37,34 @@ if __name__ == '__main__':
         # theta_start = round(2 * np.pi * random() - np.pi, 2)
         x.append(np.array([X_start, Y_start]))
         # plt.scatter(X_start, Y_start)
+    x = np.array(x) 
+    
+    # Store a list of trajectories
+    x_traj = []
+    x_traj.append(x)
+    err = rendezvous_error(x)
+    
+    # Ensemble level dynamics
+    # Create the laplacian matrix
+    lapl = np.ndarray((num_robots, num_robots))
+    lapl.fill(-1)
+    np.fill_diagonal(lapl, num_robots-1)
 
     # Store a list of trajectories
     x_traj = []
     x_traj.append(x)
     err = rendezvous_error(x)
-    while err>0.5:
-        # Create x_diff list which stores difference between current pose and desired pose
-        x_diff = []
-        for i in range(num_robots):
-            x_diff.append(np.array([0.,0.]))
+    while err>err_threshold:
         # Calculate the point to move towards
-        for i in range(num_robots):
-            for j in range(num_robots):
-                if j == i:
-                    continue
-                x_diff[i] += x[i] - x[j]
-            theta = (np.arctan2(x_diff[i][1], x_diff[i][0]) + np.pi) % (2 * np.pi) - np.pi
-            dist = np.hypot(x_diff[i][0], x_diff[i][1])
-            x[i][0] = x[i][0] -  dist * np.cos(theta) * dt
-            x[i][1] = x[i][1] -  dist * np.sin(theta) * dt
+        dx = np.kron(lapl, np.identity(p)) @ x.flatten()
+        dx = dx.reshape((num_robots, 2))
+        # Calculate direction to move towards
+        theta = (np.arctan2(dx[:,1], dx[:,0]) + np.pi) % (2 * np.pi) - np.pi
+        dist = np.hypot(dx[:,0], dx[:,1])
+        x[:,0] = x[:,0] -  dist * np.cos(theta) * dt
+        x[:,1] = x[:,1] -  dist * np.sin(theta) * dt
         
         err = rendezvous_error(x)
-        print(x)
         plt.cla()
         for robot_pose in x:
             plt.scatter(robot_pose[0], robot_pose[1])
